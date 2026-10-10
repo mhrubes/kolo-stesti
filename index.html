@@ -6,17 +6,19 @@
 <title>Kolo štěstí</title>
 <style>
   :root {
-    --bg: #fdfaf7;
-    --panel: #ffffff;
+    --bg: #e9ecf1;
+    --panel: #f6f7fa;
     --text: #1f2430;
     --muted: #6b7280;
-    --border: #c9ccd4;
+    --border: #bcc2cd;
     --accent: #0d6efd;
     --accent-text: #ffffff;
     --danger: #e5566b;
     --chip-border: #6aa0f5;
     --chip-text: #2563c9;
     --shadow: 0 10px 40px rgba(0, 0, 0, .15);
+    --drawer-bg: #dde1e8;
+    --table-bg: var(--panel);
   }
   :root[data-theme="dark"] {
     --bg: #14161b;
@@ -30,6 +32,8 @@
     --chip-border: #4a6fb0;
     --chip-text: #8db4ff;
     --shadow: 0 10px 40px rgba(0, 0, 0, .6);
+    --drawer-bg: var(--bg);
+    --table-bg: var(--panel);
   }
 
   * { box-sizing: border-box; }
@@ -114,12 +118,85 @@
   .count { color: var(--muted); font-size: .85rem; }
   hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; width: 100%; }
 
+  /* výsuvný panel s historií */
+  :root { --drawer-w: min(380px, 92vw); --tab-w: 36px; }
+  body { padding-right: var(--tab-w); transition: background .25s, color .25s, padding-right .35s ease; }
+  body.history-open { padding-right: calc(var(--drawer-w) + var(--tab-w)); }
+  @media (max-width: 1200px) {
+    /* na užších obrazovkách panel překrývá obsah, nic se neposouvá */
+    body.history-open { padding-right: var(--tab-w); }
+  }
+  .history-tab {
+    position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 31;
+    width: var(--tab-w); padding: 18px 0;
+    writing-mode: vertical-rl; text-align: center; white-space: nowrap;
+    background: var(--panel); color: var(--text); font: inherit; font-size: .95rem;
+    border: 1px solid var(--border); border-right: 0; border-radius: 10px 0 0 10px;
+    cursor: pointer; box-shadow: var(--shadow);
+    transition: right .35s ease, border-color .2s;
+  }
+  .history-tab:hover { border-color: var(--accent); }
+  body.history-open .history-tab { right: var(--drawer-w); }
+  .history-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 30;
+    width: var(--drawer-w);
+    display: flex; flex-direction: column; gap: 10px; padding: 16px;
+    background: var(--drawer-bg); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+    transform: translateX(100%); visibility: hidden;
+    transition: transform .35s ease, visibility 0s .35s;
+  }
+  body.history-open .history-drawer {
+    transform: none; visibility: visible;
+    transition: transform .35s ease, visibility 0s;
+  }
+  .drawer-head { display: flex; justify-content: space-between; align-items: center; }
+  .drawer-head h3 { margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--text); }
   .history { font-size: .85rem; color: var(--muted); }
-  .history h3 { margin: 4px 0; font-size: .9rem; color: var(--text); font-weight: 600; }
+  .history-empty { margin: 8px 0; }
+  .header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+  .switch {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 12px 6px 8px; font-size: .95rem; color: var(--text);
+  }
+  .switch:hover { border-color: var(--accent); }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .track {
+    position: relative; width: 36px; height: 20px; border-radius: 999px;
+    background: var(--border); transition: background .2s;
+  }
+  .switch .thumb {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); transition: transform .2s;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track .thumb { transform: translateX(16px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
   .opt { display: flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); cursor: pointer; user-select: none; }
   .opt input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
-  .history ol { margin: 0; padding-left: 20px; }
-  .history .when { font-size: .8rem; opacity: .75; white-space: nowrap; }
+  .history-scroll {
+    flex: 1; min-height: 0; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--table-bg);
+  }
+  .history table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .history th, .history td { padding: 6px 10px; text-align: left; vertical-align: baseline; }
+  .history thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--table-bg); color: var(--text); font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .history tbody tr + tr td { border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+  .history .what { overflow-wrap: anywhere; color: var(--text); }
+  .th-sort {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: none; border: 0; padding: 0; margin: 0;
+    color: inherit; font: inherit; cursor: pointer; white-space: nowrap;
+  }
+  .th-sort:hover, .th-sort:focus-visible { color: var(--accent); outline: none; }
+  .th-sort .arrow { font-size: .7rem; }
+  .history .num { width: 1%; text-align: right; white-space: nowrap; }
+  .history .when { width: 1%; white-space: nowrap; font-size: .8rem; }
 
   /* modal */
   dialog {
@@ -145,45 +222,67 @@
 
 <header>
   <h1>Kolo štěstí</h1>
-  <button id="themeBtn" class="icon-btn" type="button" aria-label="Přepnout světlý/tmavý režim">🌙 Tmavý režim</button>
+  <div class="header-actions">
+    <label class="switch" title="Zapnout/vypnout animaci točení kola">
+      <input id="animate" type="checkbox" checked>
+      <span class="track"><span class="thumb"></span></span>
+      <span class="switch-label">Animace</span>
+    </label>
+    <button id="themeBtn" class="icon-btn" type="button" aria-label="Přepnout světlý/tmavý režim" title="Přepne mezi světlým a tmavým režimem">🌙 Tmavý režim</button>
+  </div>
 </header>
 
 <main>
   <section class="wheel-wrap">
-    <canvas id="wheel" width="800" height="800" aria-label="Kolo štěstí"></canvas>
+    <canvas id="wheel" width="800" height="800" aria-label="Kolo štěstí" title="Kliknutím roztočíš kolo"></canvas>
     <div class="pointer"></div>
-    <div class="hub" id="hub">kliknutím to roztočíte</div>
+    <div class="hub" id="hub">kliknutím to roztočíš</div>
   </section>
 
   <aside class="panel">
     <div class="actions">
-      <button id="spinBtn" class="btn btn-primary" type="button">Spustit</button>
-      <button id="resetBtn" class="btn btn-danger" type="button">Resetovat</button>
+      <button id="spinBtn" class="btn btn-primary" type="button" title="Roztočí kolo a vybere náhodnou položku (jsou potřeba aspoň 2)">Spustit</button>
+      <button id="resetBtn" class="btn btn-danger" type="button" title="Vrátí kolo do výchozí polohy a smaže historii výsledků, položky zůstanou (před resetem se zeptá)">Resetovat</button>
     </div>
 
     <textarea id="items" spellcheck="false" aria-label="Položky kola, jedna na řádek"></textarea>
     <div class="row">
-      <button id="clearBtn" class="btn btn-ghost" type="button">Vymazat</button>
+      <button id="clearBtn" class="btn btn-ghost" type="button" title="Smaže všechny položky z kola (před smazáním se zeptá)">Vymazat</button>
       <span class="count" id="count"></span>    </div>
 
     <div class="row">
-      <button id="importBtn" class="btn btn-ghost" type="button">⬆ Import .txt</button>
-      <button id="exportBtn" class="btn btn-ghost" type="button">⬇ Export .txt</button>
+      <button id="importBtn" class="btn btn-ghost" type="button" title="Načte položky z .txt souboru (jeden řádek = jedna položka) a nahradí aktuální seznam">⬆ Import .txt</button>
+      <button id="exportBtn" class="btn btn-ghost" type="button" title="Uloží aktuální položky do .txt souboru (jeden řádek = jedna položka)">⬇ Export .txt</button>
     </div>
     <input id="importFile" type="file" accept=".txt,text/plain" hidden>
 
-    <label class="opt">
+    <label class="opt" title="Když je zapnuto, ve výsledku se ukáže tlačítko, které vybranou položku odebere z kola">
       <input id="allowRemove" type="checkbox">
       Nabízet „Odebrat z kola“ ve výsledku
     </label>
 
-    <hr>
-    <div class="history" id="history" hidden>
-      <h3>Poslední výsledky</h3>
-      <ol id="historyList"></ol>
-    </div>
   </aside>
 </main>
+
+<button id="historyTab" class="history-tab" type="button" aria-expanded="false" aria-controls="history"
+        title="Zobrazí nebo skryje historii točení">Zobrazit historii</button>
+
+<aside class="history-drawer history" id="history" aria-label="Historie točení">
+  <div class="drawer-head">
+    <h3>Historie točení</h3>
+    <button id="historyClose" class="btn btn-ghost" type="button" title="Skrýt historii">✕</button>
+  </div>
+  <p class="history-empty" id="historyEmpty">Zatím žádné točení.</p>
+  <div class="history-scroll" id="historyScroll" hidden>
+    <table>
+      <thead>
+        <tr><th>Výsledek</th><th class="when"><button class="th-sort" type="button" title="Změnit řazení podle data">Datum a čas <span class="arrow" aria-hidden="true">▼</span></button></th>
+          <th class="num"><button class="th-sort" type="button" title="Změnit řazení podle data"># <span class="arrow" aria-hidden="true">▼</span></button></th></tr>
+      </thead>
+      <tbody id="historyList"></tbody>
+    </table>
+  </div>
+</aside>
 
 <dialog id="modal">
   <div class="modal-body">
@@ -191,7 +290,7 @@
     <p class="modal-result" id="modalResult"></p>
   </div>
   <div class="modal-actions">
-    <button id="modalRemove" class="btn btn-ghost" type="button">Odebrat z kola</button>
+    <button id="modalRemove" class="btn btn-ghost" type="button" title="Odebere vybranou položku ze seznamu, aby se už nemohla vylosovat znovu">Odebrat z kola</button>
     <button id="modalClose" class="btn btn-primary" type="button" autofocus>Zavřít</button>
   </div>
 </dialog>
@@ -199,7 +298,7 @@
 <dialog id="confirmModal">
   <div class="modal-body">
     <small>Potvrzení</small>
-    <p class="modal-result">Opravdu vymazat všechny položky?</p>
+    <p class="modal-result" id="confirmText"></p>
   </div>
   <div class="modal-actions">
     <button id="confirmNo" class="btn btn-ghost" type="button">Zrušit</button>
@@ -212,6 +311,7 @@
   'use strict';
 
   const STORAGE_KEY = 'kolo-stesti:v1';
+  const HISTORY_LIMIT = 100;
 
   const $ = (id) => document.getElementById(id);
   const canvas = $('wheel'), ctx = canvas.getContext('2d');
@@ -224,7 +324,9 @@
     rotation: 0,       // rad
     spinning: false,
     history: [],
-    allowRemove: false
+    allowRemove: false,
+    animate: true,
+    historyAsc: false   // false = nejnovější nahoře
   };
 
   /* ---------- localStorage ---------- */
@@ -236,9 +338,11 @@
       if (Array.isArray(d.items)) state.items = d.items.map(String);
       if (d.theme === 'dark' || d.theme === 'light') state.theme = d.theme;
       if (typeof d.allowRemove === 'boolean') state.allowRemove = d.allowRemove;
+      if (typeof d.animate === 'boolean') state.animate = d.animate;
+      if (typeof d.historyAsc === 'boolean') state.historyAsc = d.historyAsc;
       if (Array.isArray(d.history)) {
         // starší záznamy byly jen řetězce bez data
-        state.history = d.history.slice(0, 10).map((h) =>
+        state.history = d.history.slice(0, HISTORY_LIMIT).map((h) =>
           typeof h === 'object' && h !== null
             ? { text: String(h.text), ts: Number(h.ts) || null }
             : { text: String(h), ts: null });
@@ -249,7 +353,8 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         items: state.items, theme: state.theme, history: state.history,
-        allowRemove: state.allowRemove
+        allowRemove: state.allowRemove, animate: state.animate,
+        historyAsc: state.historyAsc
       }));
     } catch (e) { /* plné úložiště / privátní režim */ }
   }
@@ -356,6 +461,16 @@
     if (delta < 0) delta += TAU;
     delta += fullTurns * TAU;
 
+    if (!state.animate) {
+      // bez animace: kolo se rovnou nastaví na vítěze a ukáže se výsledek
+      state.rotation = (state.rotation + delta) % TAU;
+      draw();
+      state.spinning = false;
+      spinBtn.disabled = false;
+      showResult(winner);
+      return;
+    }
+
     const start = state.rotation, duration = 5000 + Math.random() * 1500;
     const t0 = performance.now();
 
@@ -380,7 +495,7 @@
     $('modalResult').textContent = text;
     $('modalResult').style.borderLeftColor = colorFor(index, state.items.length);
     state.history.unshift({ text, ts: Date.now() });
-    state.history = state.history.slice(0, 10);
+    state.history = state.history.slice(0, HISTORY_LIMIT);
     save();
     renderHistory();
     $('modalRemove').hidden = !state.allowRemove;
@@ -390,6 +505,10 @@
 
   $('allowRemove').addEventListener('change', (e) => {
     state.allowRemove = e.target.checked;
+    save();
+  });
+  $('animate').addEventListener('change', (e) => {
+    state.animate = e.target.checked;
     save();
   });
   $('modalClose').addEventListener('click', () => modal.close());
@@ -453,45 +572,103 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 
-  function renderHistory() {
-    const wrap = $('history'), list = $('historyList');
-    list.innerHTML = '';
-    wrap.hidden = state.history.length === 0;
-    state.history.forEach((h) => {
-      const li = document.createElement('li');
-      li.textContent = h.text;
-      if (h.ts) {
-        const when = document.createElement('span');
-        when.className = 'when';
-        when.textContent = ' — ' + new Date(h.ts).toLocaleString('cs-CZ', {
-          day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
-        });
-        li.appendChild(when);
-      }
-      list.appendChild(li);
+  /* ---------- výsuvný panel historie ---------- */
+  const historyTab = $('historyTab');
+  function setHistoryOpen(open) {
+    document.body.classList.toggle('history-open', open);
+    historyTab.setAttribute('aria-expanded', String(open));
+    updateHistoryTab();
+  }
+  function updateHistoryTab() {
+    const open = document.body.classList.contains('history-open');
+    const n = state.history.length;
+    historyTab.textContent = (open ? 'Skrýt historii' : 'Zobrazit historii') + (n ? ` (${n})` : '');
+  }
+  historyTab.addEventListener('click', () => {
+    setHistoryOpen(!document.body.classList.contains('history-open'));
+  });
+  $('historyClose').addEventListener('click', () => setHistoryOpen(false));
+  document.querySelectorAll('.th-sort').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.historyAsc = !state.historyAsc;
+      save();
+      renderHistory();
+      $('historyScroll').scrollTop = 0;
     });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.querySelector('dialog[open]')) setHistoryOpen(false);
+  });
+
+  function renderHistory() {
+    const list = $('historyList');
+    list.innerHTML = '';
+    $('historyScroll').hidden = state.history.length === 0;
+    $('historyEmpty').hidden = state.history.length > 0;
+    // pole je řazené od nejnovějšího; číslo 1 má vždy nejstarší záznam
+    const rows = state.history.map((h, idx) => ({ h, n: state.history.length - idx }));
+    if (state.historyAsc) rows.reverse();
+    document.querySelectorAll('.th-sort .arrow').forEach((a) => {
+      a.textContent = state.historyAsc ? '▲' : '▼';
+    });
+    rows.forEach(({ h, n }) => {
+      const tr = document.createElement('tr');
+      const what = document.createElement('td');
+      what.className = 'what';
+      what.textContent = h.text;
+      const when = document.createElement('td');
+      when.className = 'when';
+      when.textContent = h.ts
+        ? new Date(h.ts).toLocaleString('cs-CZ', {
+            day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+          })
+        : '';
+      const num = document.createElement('td');
+      num.className = 'num';
+      num.textContent = String(n);
+      tr.append(what, when, num);
+      list.appendChild(tr);
+    });
+    updateHistoryTab();
   }
 
   $('spinBtn').addEventListener('click', spin);
   canvas.addEventListener('click', spin);
-  $('resetBtn').addEventListener('click', () => {
-    if (state.spinning) return;
-    state.rotation = 0;
-    state.history = [];
-    renderHistory();
-    save();
-    draw();
-  });
+
+  /* ---------- potvrzovací modal ---------- */
   const confirmModal = $('confirmModal');
-  $('clearBtn').addEventListener('click', () => {
-    if (state.spinning || state.items.length === 0) return;
+  let onConfirm = null;
+  function askConfirm(message, yesLabel, callback) {
+    $('confirmText').textContent = message;
+    $('confirmYes').textContent = yesLabel;
+    onConfirm = callback;
     confirmModal.showModal();
-  });
+  }
   $('confirmNo').addEventListener('click', () => confirmModal.close());
   $('confirmYes').addEventListener('click', () => {
+    const cb = onConfirm;
+    onConfirm = null;
     confirmModal.close();
-    setItems([]);
-    textarea.focus();
+    if (cb) cb();
+  });
+  confirmModal.addEventListener('close', () => { onConfirm = null; });
+
+  $('resetBtn').addEventListener('click', () => {
+    if (state.spinning) return;
+    askConfirm('Opravdu resetovat kolo a smazat historii výsledků?', 'Resetovat', () => {
+      state.rotation = 0;
+      state.history = [];
+      renderHistory();
+      save();
+      draw();
+    });
+  });
+  $('clearBtn').addEventListener('click', () => {
+    if (state.spinning || state.items.length === 0) return;
+    askConfirm('Opravdu vymazat všechny položky?', 'Vymazat', () => {
+      setItems([]);
+      textarea.focus();
+    });
   });
   confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) confirmModal.close(); });
 
@@ -502,6 +679,7 @@
   /* ---------- start ---------- */
   load();
   $('allowRemove').checked = state.allowRemove;
+  $('animate').checked = state.animate;
   syncTextarea();
   renderHistory();
   applyTheme();
