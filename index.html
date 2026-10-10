@@ -116,6 +116,8 @@
 
   .history { font-size: .85rem; color: var(--muted); }
   .history h3 { margin: 4px 0; font-size: .9rem; color: var(--text); font-weight: 600; }
+  .opt { display: flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); cursor: pointer; user-select: none; }
+  .opt input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
   .history ol { margin: 0; padding-left: 20px; }
   .history .when { font-size: .8rem; opacity: .75; white-space: nowrap; }
 
@@ -170,6 +172,11 @@
     </div>
     <input id="importFile" type="file" accept=".txt,text/plain" hidden>
 
+    <label class="opt">
+      <input id="allowRemove" type="checkbox" checked>
+      Nabízet „Odebrat z kola“ ve výsledku
+    </label>
+
     <hr>
     <div class="history" id="history" hidden>
       <h3>Poslední výsledky</h3>
@@ -185,7 +192,7 @@
   </div>
   <div class="modal-actions">
     <button id="modalRemove" class="btn btn-ghost" type="button">Odebrat z kola</button>
-    <button id="modalClose" class="btn btn-primary" type="button">Zavřít</button>
+    <button id="modalClose" class="btn btn-primary" type="button" autofocus>Zavřít</button>
   </div>
 </dialog>
 
@@ -216,7 +223,8 @@
     theme: null,
     rotation: 0,       // rad
     spinning: false,
-    history: []
+    history: [],
+    allowRemove: true
   };
 
   /* ---------- localStorage ---------- */
@@ -227,6 +235,7 @@
       const d = JSON.parse(raw);
       if (Array.isArray(d.items)) state.items = d.items.map(String);
       if (d.theme === 'dark' || d.theme === 'light') state.theme = d.theme;
+      if (typeof d.allowRemove === 'boolean') state.allowRemove = d.allowRemove;
       if (Array.isArray(d.history)) {
         // starší záznamy byly jen řetězce bez data
         state.history = d.history.slice(0, 10).map((h) =>
@@ -239,7 +248,8 @@
   function save() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        items: state.items, theme: state.theme, history: state.history
+        items: state.items, theme: state.theme, history: state.history,
+        allowRemove: state.allowRemove
       }));
     } catch (e) { /* plné úložiště / privátní režim */ }
   }
@@ -373,8 +383,15 @@
     state.history = state.history.slice(0, 10);
     save();
     renderHistory();
+    $('modalRemove').hidden = !state.allowRemove;
     modal.showModal();
+    $('modalClose').focus();
   }
+
+  $('allowRemove').addEventListener('change', (e) => {
+    state.allowRemove = e.target.checked;
+    save();
+  });
   $('modalClose').addEventListener('click', () => modal.close());
   $('modalRemove').addEventListener('click', () => {
     if (lastWinner >= 0) {
@@ -484,6 +501,7 @@
 
   /* ---------- start ---------- */
   load();
+  $('allowRemove').checked = state.allowRemove;
   syncTextarea();
   renderHistory();
   applyTheme();
