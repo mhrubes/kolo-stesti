@@ -711,7 +711,8 @@
     if (roulette.raf) return;
     roulette.t0 = performance.now();
     const loop = (now) => {
-      drawRoulette(now);
+      // chyba v jednom snímku nesmí zastavit smyčku a tím zaseknout losování
+      try { drawRoulette(now); } catch (e) { console.error('ruleta: chyba při kreslení', e); }
       roulette.raf = requestAnimationFrame(loop);
     };
     roulette.raf = requestAnimationFrame(loop);
@@ -816,7 +817,8 @@
     let ball = null;   // { a, r, k }
     const s = roulette.spin;
     if (s) {
-      const p = (now - s.t0) / s.T;
+      // časové razítko snímku může být o pár ms starší než s.t0, záporné p by shodilo kreslení
+      const p = Math.max(0, (now - s.t0) / s.T);
       if (p >= 1) {
         roulette.ball = { pocket: s.winner, offset: s.offset };
         roulette.spin = null;
@@ -870,6 +872,16 @@
         winner, seg, offset: (Math.random() - .5) * seg * .4,
         turns: 7 + Math.floor(Math.random() * 3)
       };
+      // pojistka: kdyby se animace nedokončila (např. skrytá záložka), losování se dokončí samo
+      const s = roulette.spin;
+      setTimeout(() => {
+        if (roulette.spin !== s) return;
+        roulette.ball = { pocket: s.winner, offset: s.offset };
+        roulette.spin = null;
+        const done = roulette.onDone;
+        roulette.onDone = null;
+        if (done) done();
+      }, s.T + 1500);
     });
   }
 
