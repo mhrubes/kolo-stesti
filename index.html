@@ -210,6 +210,9 @@
   .seg-btn:hover { color: var(--accent); }
   .seg-btn.active, .seg-btn.active:hover { background: var(--accent); color: var(--accent-text); }
 
+  .preset-tabs { align-self: flex-start; }
+  .preset-tabs .seg-btn { font-size: .8rem; padding: 3px 10px; }
+
   /* přechod kolo ↔ ruleta */
   .wheel-wrap { perspective: 1400px; }
   .wheel-face, .roulette-face, .cards-face { position: absolute; inset: 0; }
@@ -335,6 +338,12 @@
       <button id="resetBtn" class="btn btn-danger" type="button" title="Vrátí kolo do výchozí polohy a smaže historii výsledků, položky zůstanou (před resetem se zeptá)">Resetovat</button>
     </div>
 
+    <div class="seg preset-tabs" id="presetTabs" role="group" aria-label="Výběr seznamu">
+      <button class="seg-btn" type="button" data-preset="0" title="Přepne na seznam Výběr 1">Výběr 1</button>
+      <button class="seg-btn" type="button" data-preset="1" title="Přepne na seznam Výběr 2">Výběr 2</button>
+      <button class="seg-btn" type="button" data-preset="2" title="Přepne na seznam Výběr 3">Výběr 3</button>
+    </div>
+
     <textarea id="items" spellcheck="false" aria-label="Položky kola, jedna na řádek"></textarea>
     <div class="row">
       <button id="clearBtn" class="btn btn-ghost" type="button" title="Smaže všechny položky z kola (před smazáním se zeptá)">Vymazat</button>
@@ -409,7 +418,9 @@
   const modal = $('modal');
 
   const state = {
-    items: [],
+    items: [],          // položky aktivního výběru
+    presets: [[], [], []],   // uložené seznamy Výběr 1–3
+    active: 0,               // index aktivního výběru
     theme: null,
     rotation: 0,       // rad
     spinning: false,
@@ -426,7 +437,17 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const d = JSON.parse(raw);
-      if (Array.isArray(d.items)) state.items = d.items.map(String);
+      if (Array.isArray(d.presets)) {
+        state.presets = [0, 1, 2].map((i) =>
+          (Array.isArray(d.presets[i]) ? d.presets[i].map(String) : []));
+        const a = Number(d.activePreset);
+        state.active = Number.isInteger(a) && a >= 0 && a < 3 ? a : 0;
+        state.items = state.presets[state.active].slice();
+      } else if (Array.isArray(d.items)) {
+        // starší záznam bez výběrů: stávající seznam se přenese do Výběr 1
+        state.items = d.items.map(String);
+        state.presets[0] = state.items.slice();
+      }
       if (d.theme === 'dark' || d.theme === 'light') state.theme = d.theme;
       if (typeof d.allowRemove === 'boolean') state.allowRemove = d.allowRemove;
       if (typeof d.animate === 'boolean') state.animate = d.animate;
@@ -443,8 +464,11 @@
   }
   function save() {
     try {
+      state.presets[state.active] = state.items.slice();
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        items: state.items, theme: state.theme, history: state.history,
+        // items zůstává jako kopie aktivního výběru kvůli zpětné kompatibilitě
+        items: state.items, presets: state.presets, activePreset: state.active,
+        theme: state.theme, history: state.history,
         allowRemove: state.allowRemove, animate: state.animate,
         historyAsc: state.historyAsc, mode: state.mode
       }));
@@ -639,6 +663,29 @@
     syncTextarea();
     onItemsChanged(false);
   }
+
+  /* ---------- výběry (3 sloty se seznamy) ---------- */
+  function renderPresetTabs() {
+    document.querySelectorAll('#presetTabs .seg-btn').forEach((b) => {
+      const on = Number(b.dataset.preset) === state.active;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function switchPreset(i) {
+    if (state.spinning || i === state.active) return;
+    state.presets[state.active] = state.items.slice();
+    state.active = i;
+    state.items = state.presets[i].slice();
+    syncTextarea();
+    renderPresetTabs();
+    onItemsChanged(false);
+  }
+
+  document.querySelectorAll('#presetTabs .seg-btn').forEach((b) => {
+    b.addEventListener('click', () => switchPreset(Number(b.dataset.preset)));
+  });
 
   function parseLines(text) {
     return text.replace(/^﻿/, '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -1110,6 +1157,7 @@
   load();
   $('allowRemove').checked = state.allowRemove;
   $('animate').checked = state.animate;
+  renderPresetTabs();
   buildDeck();
   fitCards();
   setMode(state.mode);
