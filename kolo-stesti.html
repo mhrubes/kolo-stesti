@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="cs" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kolo štěstí</title>
+<style>
+  :root {
+    --bg: #fdfaf7;
+    --panel: #ffffff;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --border: #c9ccd4;
+    --accent: #0d6efd;
+    --accent-text: #ffffff;
+    --danger: #e5566b;
+    --chip-border: #6aa0f5;
+    --chip-text: #2563c9;
+    --shadow: 0 10px 40px rgba(0, 0, 0, .15);
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161b;
+    --panel: #1e222b;
+    --text: #e8eaf0;
+    --muted: #9aa3b2;
+    --border: #3a4050;
+    --accent: #4c8dff;
+    --accent-text: #ffffff;
+    --danger: #e0556a;
+    --chip-border: #4a6fb0;
+    --chip-text: #8db4ff;
+    --shadow: 0 10px 40px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    transition: background .25s, color .25s;
+  }
+
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; gap: 12px;
+  }
+  header h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.2rem); font-weight: 500; }
+  .icon-btn {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 8px 14px; font-size: .95rem; cursor: pointer;
+  }
+  .icon-btn:hover { border-color: var(--accent); }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 28px;
+    max-width: 1200px; margin: 0 auto; padding: 8px 20px 40px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  /* wheel */
+  .wheel-wrap {
+    position: relative; width: 100%; max-width: 640px; margin: 0 auto;
+    aspect-ratio: 1 / 1;
+  }
+  #wheel { width: 100%; height: 100%; display: block; cursor: pointer; border-radius: 50%; box-shadow: var(--shadow); }
+  .pointer {
+    position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+    width: 0; height: 0;
+    border-top: 14px solid transparent; border-bottom: 14px solid transparent;
+    border-right: 34px solid #e11d2e;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.4));
+    pointer-events: none;
+  }
+  .hub {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(20, 22, 27, .7); color: #fff;
+    padding: 12px 20px; border-radius: 10px; font-size: clamp(.95rem, 2.4vw, 1.4rem);
+    pointer-events: none; white-space: nowrap;
+    transition: opacity .3s;
+  }
+  .hub.hidden { opacity: 0; }
+
+  /* side panel */
+  .panel { display: flex; flex-direction: column; gap: 12px; }
+  .actions { display: flex; gap: 10px; align-items: center; }
+  .btn {
+    border: 0; border-radius: 6px; cursor: pointer; font-size: 1rem;
+    padding: 10px 22px; color: #fff;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-text); font-size: 1.15rem; }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-danger { background: var(--danger); padding: 6px 12px; font-size: .8rem; }
+  .btn-ghost {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    padding: 5px 14px; font-size: .85rem;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+
+  textarea {
+    width: 100%; height: 300px; resize: vertical;
+    background: var(--panel); color: var(--text);
+    border: 2px solid var(--border); border-radius: 4px;
+    padding: 10px; font: inherit; line-height: 1.45;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; justify-content: space-between; align-items: center; }
+  .count { color: var(--muted); font-size: .85rem; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; width: 100%; }
+
+  .history { font-size: .85rem; color: var(--muted); }
+  .history h3 { margin: 4px 0; font-size: .9rem; color: var(--text); font-weight: 600; }
+  .history ol { margin: 0; padding-left: 20px; }
+  .history .when { font-size: .8rem; opacity: .75; white-space: nowrap; }
+
+  /* modal */
+  dialog {
+    border: 0; border-radius: 14px; padding: 0;
+    background: var(--panel); color: var(--text);
+    box-shadow: var(--shadow); width: min(92vw, 440px);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(2px); }
+  dialog[open] { animation: pop .3s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal-body { padding: 28px 24px 12px; text-align: center; }
+  .modal-body small { color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+  .modal-result {
+    margin: 10px 0 0; font-size: clamp(1.4rem, 5vw, 2rem); font-weight: 700;
+    word-break: break-word; padding: 14px; border-radius: 10px;
+    border-left: 10px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .modal-actions { display: flex; gap: 10px; justify-content: center; padding: 16px 24px 24px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kolo štěstí</h1>
+  <button id="themeBtn" class="icon-btn" type="button" aria-label="Přepnout světlý/tmavý režim">🌙 Tmavý režim</button>
+</header>
+
+<main>
+  <section class="wheel-wrap">
+    <canvas id="wheel" width="800" height="800" aria-label="Kolo štěstí"></canvas>
+    <div class="pointer"></div>
+    <div class="hub" id="hub">kliknutím to roztočíte</div>
+  </section>
+
+  <aside class="panel">
+    <div class="actions">
+      <button id="spinBtn" class="btn btn-primary" type="button">Spustit</button>
+      <button id="resetBtn" class="btn btn-danger" type="button">Resetovat</button>
+    </div>
+
+    <textarea id="items" spellcheck="false" aria-label="Položky kola, jedna na řádek"></textarea>
+    <div class="row">
+      <button id="clearBtn" class="btn btn-ghost" type="button">Vymazat</button>
+      <span class="count" id="count"></span>    </div>
+
+    <div class="row">
+      <button id="importBtn" class="btn btn-ghost" type="button">⬆ Import .txt</button>
+      <button id="exportBtn" class="btn btn-ghost" type="button">⬇ Export .txt</button>
+    </div>
+    <input id="importFile" type="file" accept=".txt,text/plain" hidden>
+
+    <hr>
+    <div class="history" id="history" hidden>
+      <h3>Poslední výsledky</h3>
+      <ol id="historyList"></ol>
+    </div>
+  </aside>
+</main>
+
+<dialog id="modal">
+  <div class="modal-body">
+    <small>Vybráno</small>
+    <p class="modal-result" id="modalResult"></p>
+  </div>
+  <div class="modal-actions">
+    <button id="modalRemove" class="btn btn-ghost" type="button">Odebrat z kola</button>
+    <button id="modalClose" class="btn btn-primary" type="button">Zavřít</button>
+  </div>
+</dialog>
+
+<dialog id="confirmModal">
+  <div class="modal-body">
+    <small>Potvrzení</small>
+    <p class="modal-result">Opravdu vymazat všechny položky?</p>
+  </div>
+  <div class="modal-actions">
+    <button id="confirmNo" class="btn btn-ghost" type="button">Zrušit</button>
+    <button id="confirmYes" class="btn btn-danger" type="button">Vymazat</button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'kolo-stesti:v1';
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('wheel'), ctx = canvas.getContext('2d');
+  const textarea = $('items'), hub = $('hub'), spinBtn = $('spinBtn');
+  const modal = $('modal');
+
+  const state = {
+    items: [],
+    theme: null,
+    rotation: 0,       // rad
+    spinning: false,
+    history: []
+  };
+
+  /* ---------- localStorage ---------- */
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.items)) state.items = d.items.map(String);
+      if (d.theme === 'dark' || d.theme === 'light') state.theme = d.theme;
+      if (Array.isArray(d.history)) {
+        // starší záznamy byly jen řetězce bez data
+        state.history = d.history.slice(0, 10).map((h) =>
+          typeof h === 'object' && h !== null
+            ? { text: String(h.text), ts: Number(h.ts) || null }
+            : { text: String(h), ts: null });
+      }
+    } catch (e) { /* poškozená data ignorovat */ }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        items: state.items, theme: state.theme, history: state.history
+      }));
+    } catch (e) { /* plné úložiště / privátní režim */ }
+  }
+
+  /* ---------- téma ---------- */
+  function applyTheme() {
+    const theme = state.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme;
+    $('themeBtn').textContent = theme === 'dark' ? '☀️ Světlý režim' : '🌙 Tmavý režim';
+    draw();
+  }
+  $('themeBtn').addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme;
+    state.theme = cur === 'dark' ? 'light' : 'dark';
+    save();
+    applyTheme();
+  });
+
+  /* ---------- kreslení ---------- */
+  const TAU = Math.PI * 2;
+  function colorFor(i, n) {
+    // střídání odstínů, sousední výseče se liší i na přechodu poslední → první
+    const hue = (i * 360 / n) % 360;
+    const dark = document.documentElement.dataset.theme === 'dark';
+    return `hsl(${hue}, ${dark ? 55 : 70}%, ${dark ? 42 : 68}%)`;
+  }
+
+  function draw() {
+    const size = canvas.width, c = size / 2, r = c - 6;
+    ctx.clearRect(0, 0, size, size);
+    const n = state.items.length;
+
+    if (n === 0) {
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel');
+      ctx.beginPath(); ctx.arc(c, c, r, 0, TAU); ctx.fill();
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted');
+      ctx.font = '32px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('Přidej položky', c, c);
+      return;
+    }
+
+    const seg = TAU / n;
+    ctx.save();
+    ctx.translate(c, c);
+    ctx.rotate(state.rotation);
+
+    for (let i = 0; i < n; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, i * seg, (i + 1) * seg);
+      ctx.closePath();
+      ctx.fillStyle = colorFor(i, n);
+      ctx.fill();
+      if (n > 1) {
+        ctx.strokeStyle = 'rgba(0,0,0,.25)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // text podél poloměru
+      ctx.save();
+      ctx.rotate(i * seg + seg / 2);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      const fontSize = Math.max(14, Math.min(34, (r * seg) * 0.45, 34));
+      ctx.font = `${fontSize}px system-ui, "Segoe UI", sans-serif`;
+      ctx.fillStyle = document.documentElement.dataset.theme === 'dark' ? '#fff' : '#111';
+      const maxW = r * 0.62;
+      ctx.fillText(fit(state.items[i], maxW), r - 22, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // okraj
+    ctx.beginPath(); ctx.arc(c, c, r, 0, TAU);
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 4; ctx.stroke();
+  }
+
+  function fit(text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
+
+  /* ---------- točení ---------- */
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function spin() {
+    const n = state.items.length;
+    if (state.spinning || n < 2) return;
+    state.spinning = true;
+    spinBtn.disabled = true;
+    hub.classList.add('hidden');
+
+    const seg = TAU / n;
+    const winner = Math.floor(Math.random() * n);
+    // ukazatel je na úhlu 0 (vpravo); střed výseče vítěze + náhodný posun uvnitř výseče
+    const jitter = (Math.random() - 0.5) * seg * 0.8;
+    const targetMod = (TAU - ((winner + 0.5) * seg + jitter)) % TAU;
+    const startMod = ((state.rotation % TAU) + TAU) % TAU;
+    const fullTurns = 5 + Math.floor(Math.random() * 3);
+    let delta = targetMod - startMod;
+    if (delta < 0) delta += TAU;
+    delta += fullTurns * TAU;
+
+    const start = state.rotation, duration = 5000 + Math.random() * 1500;
+    const t0 = performance.now();
+
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / duration);
+      state.rotation = start + delta * easeOutCubic(t);
+      draw();
+      if (t < 1) return requestAnimationFrame(frame);
+      state.rotation %= TAU;
+      state.spinning = false;
+      spinBtn.disabled = false;
+      showResult(winner);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- výsledek / modal ---------- */
+  let lastWinner = -1;
+  function showResult(index) {
+    lastWinner = index;
+    const text = state.items[index];
+    $('modalResult').textContent = text;
+    $('modalResult').style.borderLeftColor = colorFor(index, state.items.length);
+    state.history.unshift({ text, ts: Date.now() });
+    state.history = state.history.slice(0, 10);
+    save();
+    renderHistory();
+    modal.showModal();
+  }
+  $('modalClose').addEventListener('click', () => modal.close());
+  $('modalRemove').addEventListener('click', () => {
+    if (lastWinner >= 0) {
+      state.items.splice(lastWinner, 1);
+      lastWinner = -1;
+      syncTextarea();
+      onItemsChanged(false);
+    }
+    modal.close();
+  });
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.close(); });
+  modal.addEventListener('close', () => hub.classList.remove('hidden'));
+
+  /* ---------- UI ---------- */
+  function syncTextarea() { textarea.value = state.items.join('\n'); }
+
+  function onItemsChanged(fromTextarea = true) {
+    $('count').textContent = `Položek: ${state.items.length}`;
+    spinBtn.disabled = state.spinning || state.items.length < 2;
+    save();
+    draw();
+  }
+
+  textarea.addEventListener('input', () => {
+    state.items = textarea.value.split('\n').map((s) => s.trim()).filter(Boolean);
+    onItemsChanged();
+  });
+
+  function setItems(items) {
+    if (state.spinning) return;
+    state.items = items.slice();
+    syncTextarea();
+    onItemsChanged(false);
+  }
+
+  function parseLines(text) {
+    return text.replace(/^﻿/, '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file || state.spinning) return;
+    const reader = new FileReader();
+    reader.onload = () => setItems(parseLines(String(reader.result)));
+    reader.readAsText(file, 'UTF-8');
+  });
+
+  $('exportBtn').addEventListener('click', () => {
+    // BOM kvůli správnému zobrazení diakritiky v Poznámkovém bloku
+    const blob = new Blob(['﻿' + state.items.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'kolo-stesti.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  function renderHistory() {
+    const wrap = $('history'), list = $('historyList');
+    list.innerHTML = '';
+    wrap.hidden = state.history.length === 0;
+    state.history.forEach((h) => {
+      const li = document.createElement('li');
+      li.textContent = h.text;
+      if (h.ts) {
+        const when = document.createElement('span');
+        when.className = 'when';
+        when.textContent = ' — ' + new Date(h.ts).toLocaleString('cs-CZ', {
+          day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        li.appendChild(when);
+      }
+      list.appendChild(li);
+    });
+  }
+
+  $('spinBtn').addEventListener('click', spin);
+  canvas.addEventListener('click', spin);
+  $('resetBtn').addEventListener('click', () => {
+    if (state.spinning) return;
+    state.rotation = 0;
+    state.history = [];
+    renderHistory();
+    save();
+    draw();
+  });
+  const confirmModal = $('confirmModal');
+  $('clearBtn').addEventListener('click', () => {
+    if (state.spinning || state.items.length === 0) return;
+    confirmModal.showModal();
+  });
+  $('confirmNo').addEventListener('click', () => confirmModal.close());
+  $('confirmYes').addEventListener('click', () => {
+    confirmModal.close();
+    setItems([]);
+    textarea.focus();
+  });
+  confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) confirmModal.close(); });
+
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!state.theme) applyTheme();
+  });
+
+  /* ---------- start ---------- */
+  load();
+  syncTextarea();
+  renderHistory();
+  applyTheme();
+  onItemsChanged(false);
+})();
+</script>
+</body>
+</html>
