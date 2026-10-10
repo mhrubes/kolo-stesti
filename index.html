@@ -198,6 +198,81 @@
   .history .num { width: 1%; text-align: right; white-space: nowrap; }
   .history .when { width: 1%; white-space: nowrap; font-size: .8rem; }
 
+  /* přepínač kolo / ruleta */
+  .seg {
+    display: inline-flex; border: 1px solid var(--border); border-radius: 999px;
+    overflow: hidden; background: var(--panel);
+  }
+  .seg-btn {
+    background: none; border: 0; color: var(--text); font: inherit; font-size: .95rem;
+    padding: 7px 14px; cursor: pointer; transition: background .2s, color .2s;
+  }
+  .seg-btn:hover { color: var(--accent); }
+  .seg-btn.active, .seg-btn.active:hover { background: var(--accent); color: var(--accent-text); }
+
+  /* přechod kolo ↔ ruleta */
+  .wheel-wrap { perspective: 1400px; }
+  .wheel-face, .roulette-face, .cards-face { position: absolute; inset: 0; }
+  .cards-face { perspective: 1200px; }
+  .roulette-face, .cards-face {
+    cursor: pointer;
+    transform: rotateY(-90deg) scale(.4); visibility: hidden; pointer-events: none;
+    transition: transform .7s cubic-bezier(.5, 0, .2, 1), visibility 0s .7s;
+  }
+  .wheel-wrap.mode-roulette .roulette-face,
+  .wheel-wrap.mode-cards .cards-face {
+    transform: none; visibility: visible; pointer-events: auto;
+    transition: transform .7s cubic-bezier(.5, 0, .2, 1) .15s, visibility 0s;
+  }
+  #roulette { width: 100%; height: 100%; display: block; border-radius: 50%; box-shadow: var(--shadow); }
+  .wheel-face {
+    transition: transform .7s cubic-bezier(.5, 0, .2, 1) .15s, visibility 0s;
+  }
+  .wheel-wrap.mode-roulette .wheel-face,
+  .wheel-wrap.mode-cards .wheel-face {
+    transform: rotateY(90deg) scale(.5); visibility: hidden; pointer-events: none;
+    transition: transform .7s cubic-bezier(.5, 0, .2, 1), visibility 0s .7s;
+  }
+  .stage-caption {
+    position: absolute; left: 0; right: 0; bottom: 2%; text-align: center;
+    color: var(--muted); font-size: 1.05rem; pointer-events: none;
+    opacity: 0; transition: opacity .4s;
+  }
+  .wheel-wrap.mode-roulette .stage-caption,
+  .wheel-wrap.mode-cards .stage-caption { opacity: 1; transition-delay: .6s; }
+
+  /* karty */
+  #deckBox { position: absolute; inset: 0; }
+  .card {
+    position: absolute; left: 50%; top: 50%;
+    width: var(--cw, 160px); aspect-ratio: 5 / 7;
+    transform-style: preserve-3d; will-change: transform;
+  }
+  .card-face {
+    position: absolute; inset: 0; border-radius: 10px; backface-visibility: hidden;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .35); border: 1px solid rgba(0, 0, 0, .3);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card-back {
+    background: repeating-linear-gradient(45deg, #1d4ed8 0 8px, #2f6bf0 8px 16px);
+    border: calc(var(--cw, 160px) * .05) solid #fff;
+    color: #fff; font-size: calc(var(--cw, 160px) * .4); font-weight: 700;
+  }
+  .card-front {
+    background: #fffdf7; color: #1b1b1f; transform: rotateY(180deg);
+    padding: 12% 10%; text-align: center; font-weight: 700;
+    font-size: calc(var(--cw, 160px) * .12);
+  }
+  .card-text {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6;
+    overflow: hidden; overflow-wrap: anywhere; line-height: 1.2;
+  }
+  .card-front .corner {
+    position: absolute; color: #c41e3a; font-size: calc(var(--cw, 160px) * .13); line-height: 1;
+  }
+  .card-front .tl { top: 5%; left: 7%; }
+  .card-front .br { bottom: 5%; right: 7%; transform: rotate(180deg); }
+
   /* modal */
   dialog {
     border: 0; border-radius: 14px; padding: 0;
@@ -223,6 +298,11 @@
 <header>
   <h1>Kolo štěstí</h1>
   <div class="header-actions">
+    <div class="seg" role="group" aria-label="Typ losování">
+      <button id="modeWheel" class="seg-btn active" type="button" aria-pressed="true" title="Klasické kolo štěstí">🎡 Kolo</button>
+      <button id="modeRoulette" class="seg-btn" type="button" aria-pressed="false" title="Ruleta při pohledu shora: kulička obíhá a zapadne do vylosované přihrádky">🎰 Ruleta</button>
+      <button id="modeCards" class="seg-btn" type="button" aria-pressed="false" title="Tahání karet: balíček se zamíchá a vytáhne se jedna karta">🃏 Karty</button>
+    </div>
     <label class="switch" title="Zapnout/vypnout animaci točení kola">
       <input id="animate" type="checkbox" checked>
       <span class="track"><span class="thumb"></span></span>
@@ -233,10 +313,20 @@
 </header>
 
 <main>
-  <section class="wheel-wrap">
+  <section class="wheel-wrap" id="stage">
+    <div class="wheel-face" id="wheelFace">
     <canvas id="wheel" width="800" height="800" aria-label="Kolo štěstí" title="Kliknutím roztočíš kolo"></canvas>
     <div class="pointer"></div>
     <div class="hub" id="hub">kliknutím to roztočíš</div>
+    </div>
+
+    <div class="roulette-face" id="rouletteFace" title="Kliknutím vypustíš kuličku">
+      <canvas id="roulette" width="800" height="800" aria-label="Ruleta"></canvas>
+    </div>
+    <div class="cards-face" id="cardsFace" title="Kliknutím zamícháš balíček a vytáhneš kartu">
+      <div id="deckBox"></div>
+    </div>
+    <div class="stage-caption" id="caption">kliknutím vypustíš kuličku</div>
   </section>
 
   <aside class="panel">
@@ -326,7 +416,8 @@
     history: [],
     allowRemove: false,
     animate: true,
-    historyAsc: false   // false = nejnovější nahoře
+    historyAsc: false,  // false = nejnovější nahoře
+    mode: 'wheel'       // 'wheel' | 'roulette'
   };
 
   /* ---------- localStorage ---------- */
@@ -340,6 +431,7 @@
       if (typeof d.allowRemove === 'boolean') state.allowRemove = d.allowRemove;
       if (typeof d.animate === 'boolean') state.animate = d.animate;
       if (typeof d.historyAsc === 'boolean') state.historyAsc = d.historyAsc;
+      if (['wheel', 'roulette', 'cards'].includes(d.mode)) state.mode = d.mode;
       if (Array.isArray(d.history)) {
         // starší záznamy byly jen řetězce bez data
         state.history = d.history.slice(0, HISTORY_LIMIT).map((h) =>
@@ -354,7 +446,7 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         items: state.items, theme: state.theme, history: state.history,
         allowRemove: state.allowRemove, animate: state.animate,
-        historyAsc: state.historyAsc
+        historyAsc: state.historyAsc, mode: state.mode
       }));
     } catch (e) { /* plné úložiště / privátní režim */ }
   }
@@ -452,6 +544,8 @@
 
     const seg = TAU / n;
     const winner = Math.floor(Math.random() * n);
+    if (state.mode === 'roulette') { spinRoulette(winner); return; }
+    if (state.mode === 'cards') { spinCards(winner); return; }
     // ukazatel je na úhlu 0 (vpravo); střed výseče vítěze + náhodný posun uvnitř výseče
     const jitter = (Math.random() - 0.5) * seg * 0.8;
     const targetMod = (TAU - ((winner + 0.5) * seg + jitter)) % TAU;
@@ -572,6 +666,330 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 
+  const MODES = {
+    wheel: { btn: 'modeWheel' },
+    roulette: { btn: 'modeRoulette', caption: 'kliknutím vypustíš kuličku' },
+    cards: { btn: 'modeCards', caption: 'kliknutím zamícháš balíček' }
+  };
+
+  function setMode(mode) {
+    state.mode = MODES[mode] ? mode : 'wheel';
+    Object.keys(MODES).forEach((m) => {
+      const on = m === state.mode;
+      $('stage').classList.toggle('mode-' + m, on);
+      $(MODES[m].btn).classList.toggle('active', on);
+      $(MODES[m].btn).setAttribute('aria-pressed', String(on));
+    });
+    if (MODES[state.mode].caption) $('caption').textContent = MODES[state.mode].caption;
+    if (state.mode === 'roulette') startRoulette(); else stopRoulette();
+  }
+  Object.keys(MODES).forEach((m) => {
+    $(MODES[m].btn).addEventListener('click', () => {
+      if (state.spinning) return;
+      setMode(m);
+      save();
+    });
+  });
+  $('rouletteFace').addEventListener('click', spin);
+  $('cardsFace').addEventListener('click', spin);
+  window.addEventListener('resize', fitCards);
+
+  /* ---------- Ruleta (pohled shora) ---------- */
+  const rCanvas = $('roulette'), rctx = rCanvas.getContext('2d');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const R_WHEEL_SPEED = 0.5;       // rad/s, kolo se točí pořád stejně
+  const R_SPIN_MS = 6500;           // základní délka letu kuličky
+  const R_BOWL = 392, R_WOOD = 335, R_TRACK = 300, R_RIM = 265;
+  const R_POCKET_OUT = 262, R_POCKET_IN = 168, R_BALL_REST = 238;
+  const roulette = { raf: 0, base: 0, t0: 0, ball: null, spin: null, onDone: null };
+
+  function rouletteWheelAt(timeMs) {
+    return roulette.base + R_WHEEL_SPEED * (timeMs - roulette.t0) / 1000;
+  }
+
+  function startRoulette() {
+    if (roulette.raf) return;
+    roulette.t0 = performance.now();
+    const loop = (now) => {
+      drawRoulette(now);
+      roulette.raf = requestAnimationFrame(loop);
+    };
+    roulette.raf = requestAnimationFrame(loop);
+  }
+
+  function stopRoulette() {
+    if (!roulette.raf || roulette.spin) return;
+    cancelAnimationFrame(roulette.raf);
+    roulette.raf = 0;
+    const now = performance.now();
+    roulette.base = rouletteWheelAt(now);   // aby kolo po návratu navázalo
+    roulette.t0 = now;
+  }
+
+  function rouletteFit(text, maxW) {
+    if (rctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && rctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
+
+  function drawRoulette(now) {
+    const size = rCanvas.width, c = size / 2;
+    const items = state.items, n = items.length;
+    const wheel = rouletteWheelAt(now);
+    rctx.clearRect(0, 0, size, size);
+
+    // dřevěná mísa
+    let g = rctx.createRadialGradient(c, c, R_WOOD, c, c, R_BOWL);
+    g.addColorStop(0, '#8b5a2b'); g.addColorStop(.6, '#5e3a1a'); g.addColorStop(1, '#3a210d');
+    rctx.fillStyle = g;
+    rctx.beginPath(); rctx.arc(c, c, R_BOWL, 0, TAU); rctx.fill();
+    rctx.strokeStyle = '#d4af37'; rctx.lineWidth = 4;
+    rctx.beginPath(); rctx.arc(c, c, R_WOOD, 0, TAU); rctx.stroke();
+
+    // dráha kuličky
+    g = rctx.createRadialGradient(c, c, R_RIM, c, c, R_WOOD);
+    g.addColorStop(0, '#2b2b31'); g.addColorStop(.5, '#4d4d58'); g.addColorStop(1, '#25252b');
+    rctx.fillStyle = g;
+    rctx.beginPath(); rctx.arc(c, c, R_WOOD - 2, 0, TAU); rctx.fill();
+    rctx.strokeStyle = '#d4af37'; rctx.lineWidth = 3;
+    rctx.beginPath(); rctx.arc(c, c, R_RIM, 0, TAU); rctx.stroke();
+
+    // přihrádky (točí se s kolem)
+    if (n === 0) {
+      rctx.fillStyle = '#16161a';
+      rctx.beginPath(); rctx.arc(c, c, R_POCKET_OUT, 0, TAU); rctx.fill();
+      rctx.fillStyle = '#ddd'; rctx.font = '34px system-ui'; rctx.textAlign = 'center';
+      rctx.fillText('Přidej položky', c, c);
+      return;
+    }
+    const seg = TAU / n;
+    for (let i = 0; i < n; i++) {
+      const a0 = wheel + i * seg, a1 = a0 + seg;
+      rctx.beginPath();
+      rctx.arc(c, c, R_POCKET_OUT, a0, a1);
+      rctx.arc(c, c, R_POCKET_IN, a1, a0, true);
+      rctx.closePath();
+      rctx.fillStyle = i % 2 ? '#16161a' : '#c41e3a';
+      rctx.fill();
+      rctx.strokeStyle = '#d4af37'; rctx.lineWidth = 2; rctx.stroke();
+
+      rctx.save();
+      rctx.translate(c, c);
+      rctx.rotate(a0 + seg / 2);
+      rctx.textAlign = 'right'; rctx.textBaseline = 'middle';
+      rctx.fillStyle = '#fff';
+      rctx.font = `600 ${Math.max(11, Math.min(22, R_POCKET_IN * seg * 0.45))}px system-ui, "Segoe UI", sans-serif`;
+      // nejdřív zmenšit písmo, až potom zkracovat text
+      const maxW = R_POCKET_OUT - R_POCKET_IN - 16;
+      let fs = Math.max(11, Math.min(20, R_POCKET_IN * seg * 0.45));
+      rctx.font = `600 ${fs}px system-ui, "Segoe UI", sans-serif`;
+      while (fs > 11 && rctx.measureText(items[i]).width > maxW) {
+        fs -= 1;
+        rctx.font = `600 ${fs}px system-ui, "Segoe UI", sans-serif`;
+      }
+      rctx.fillText(rouletteFit(items[i], maxW), R_POCKET_OUT - 8, 0);
+      rctx.restore();
+    }
+
+    // kužel uprostřed a točící se hlavice
+    g = rctx.createRadialGradient(c - 30, c - 30, 10, c, c, R_POCKET_IN);
+    g.addColorStop(0, '#9a6a33'); g.addColorStop(1, '#2b1a0c');
+    rctx.fillStyle = g;
+    rctx.beginPath(); rctx.arc(c, c, R_POCKET_IN - 2, 0, TAU); rctx.fill();
+    rctx.save();
+    rctx.translate(c, c); rctx.rotate(wheel);
+    rctx.strokeStyle = '#d4af37'; rctx.lineWidth = 7; rctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      rctx.rotate(Math.PI / 2);
+      rctx.beginPath(); rctx.moveTo(18, 0); rctx.lineTo(112, 0); rctx.stroke();
+      rctx.fillStyle = '#d4af37';
+      rctx.beginPath(); rctx.arc(118, 0, 9, 0, TAU); rctx.fill();
+    }
+    rctx.restore();
+    g = rctx.createRadialGradient(c - 8, c - 8, 2, c, c, 34);
+    g.addColorStop(0, '#fff2b0'); g.addColorStop(1, '#a8841a');
+    rctx.fillStyle = g;
+    rctx.beginPath(); rctx.arc(c, c, 34, 0, TAU); rctx.fill();
+
+    // kulička
+    let ball = null;   // { a, r, k }
+    const s = roulette.spin;
+    if (s) {
+      const p = (now - s.t0) / s.T;
+      if (p >= 1) {
+        roulette.ball = { pocket: s.winner, offset: s.offset };
+        roulette.spin = null;
+        const done = roulette.onDone;
+        roulette.onDone = null;
+        if (done) done();
+      } else {
+        // kulička běží proti směru kola a zpomaluje; cílový úhel = střed vítězné přihrádky
+        const endAngle = rouletteWheelAt(s.t0 + s.T) + (s.winner + 0.5) * s.seg + s.offset;
+        const a = endAngle + s.turns * TAU * Math.pow(1 - p, 2.2);
+        let r = R_TRACK;
+        if (p >= 0.55) {
+          const q = (p - 0.55) / 0.45;
+          const e = q * q * (3 - 2 * q);
+          r = R_BALL_REST + (R_TRACK - R_BALL_REST) * (1 - e);
+          if (q > 0.6) r += 16 * (1 - q) * Math.abs(Math.sin((q - 0.6) * Math.PI * 6));
+        }
+        ball = { a, r, k: Math.min(1, p / 0.04) };
+      }
+    }
+    if (!ball && roulette.ball && roulette.ball.pocket < n) {
+      ball = {
+        a: wheel + (roulette.ball.pocket + 0.5) * seg + roulette.ball.offset,
+        r: R_BALL_REST, k: 1
+      };
+    }
+    if (ball) {
+      const bx = c + Math.cos(ball.a) * ball.r, by = c + Math.sin(ball.a) * ball.r;
+      const br = 13 * ball.k;
+      rctx.fillStyle = 'rgba(0,0,0,.35)';
+      rctx.beginPath(); rctx.arc(bx + 3, by + 4, br, 0, TAU); rctx.fill();
+      g = rctx.createRadialGradient(bx - br * .35, by - br * .35, 1, bx, by, br);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(.6, '#e6e6e6'); g.addColorStop(1, '#9a9a9a');
+      rctx.fillStyle = g;
+      rctx.beginPath(); rctx.arc(bx, by, br, 0, TAU); rctx.fill();
+    }
+  }
+
+  function rouletteSpin(winner) {
+    return new Promise((resolve) => {
+      if (!state.animate) {
+        roulette.ball = { pocket: winner, offset: 0 };
+        return resolve();
+      }
+      startRoulette();
+      const seg = TAU / state.items.length;
+      roulette.ball = null;   // stará kulička zmizí, nová vyjede na dráhu
+      roulette.onDone = resolve;
+      roulette.spin = {
+        t0: performance.now(), T: R_SPIN_MS + Math.random() * 1500,
+        winner, seg, offset: (Math.random() - .5) * seg * .4,
+        turns: 7 + Math.floor(Math.random() * 3)
+      };
+    });
+  }
+
+  async function spinRoulette(winner) {
+    try {
+      await rouletteSpin(winner);
+      if (state.animate) await sleep(500);   // kulička chvíli „dosedá“ s kolem
+    } finally {
+      state.spinning = false;
+      spinBtn.disabled = state.items.length < 2;
+    }
+    showResult(winner);
+  }
+
+  /* ---------- Tahání karet ---------- */
+  const DECK_SIZE = 12;
+  const deck = [];                 // { el, text } od spodní karty po vrchní
+  let chosenCard = null;
+
+  // všechny transformace mají stejný seznam funkcí, aby se animace správně interpolovaly
+  function cardTransform({ x = 0, y = 0, r = 0, s = 1, f = 0 }) {
+    return `translate(-50%, -50%) translate(${x}%, ${y}%) rotate(${r}deg) scale(${s}) rotateY(${f}deg)`;
+  }
+  const stackPose = (i) => ({ x: i * 0.35, y: -i * 0.5 });
+
+  function buildDeck() {
+    const box = $('deckBox');
+    box.innerHTML = '';
+    deck.length = 0;
+    for (let i = 0; i < DECK_SIZE; i++) {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML =
+        '<div class="card-face card-back"><span>?</span></div>' +
+        '<div class="card-face card-front"><span class="corner tl">♦</span>' +
+        '<span class="card-text"></span><span class="corner br">♦</span></div>';
+      el.style.transform = cardTransform(stackPose(i));
+      el.style.zIndex = String(i);
+      box.appendChild(el);
+      deck.push({ el, text: el.querySelector('.card-text') });
+    }
+  }
+
+  function fitCards() {
+    $('cardsFace').style.setProperty('--cw', ($('stage').clientWidth * 0.26) + 'px');
+  }
+
+  function moveCard(card, pose, ms, delay = 0, easing = 'cubic-bezier(.4, 0, .2, 1)') {
+    const to = cardTransform(pose);
+    const anim = card.el.animate(
+      [{ transform: card.el.style.transform }, { transform: to }],
+      { duration: ms, delay, easing, fill: 'both' }
+    );
+    return anim.finished
+      .then(() => { card.el.style.transform = to; anim.cancel(); })
+      .catch(() => {});
+  }
+
+  function restackZ() { deck.forEach((c, i) => { c.el.style.zIndex = String(i); }); }
+
+  function gatherDeck(ms) {
+    return Promise.all(deck.map((c, i) => moveCard(c, stackPose(i), ms)));
+  }
+
+  // jedno „prolistování“: balíček se rozdělí na dvě hromádky a proloží se
+  async function shuffleRound() {
+    const half = Math.ceil(deck.length / 2);
+    await Promise.all(deck.map((c, i) => {
+      const left = i < half, j = left ? i : i - half;
+      return moveCard(c, {
+        x: (left ? -62 : 62) + j * 0.35, y: -j * 0.5, r: left ? -7 : 7
+      }, 280);
+    }));
+    const a = deck.slice(0, half), b = deck.slice(half), merged = [];
+    for (let k = 0; k < half; k++) {
+      merged.push(a[k]);
+      if (b[k]) merged.push(b[k]);
+    }
+    deck.splice(0, deck.length, ...merged);
+    restackZ();
+    await Promise.all(deck.map((c, i) => moveCard(c, stackPose(i), 240, i * 22)));
+  }
+
+  async function pickCard(text) {
+    const idx = 3 + Math.floor(Math.random() * (deck.length - 6));   // z prostředku balíčku
+    const card = deck[idx], base = stackPose(idx);
+    card.text.textContent = text;
+    card.el.style.zIndex = '100';
+    await moveCard(card, { x: base.x + 78, y: base.y - 6, r: 9, s: 1.05 }, 380);
+    await moveCard(card, { x: 0, y: 0, r: 0, s: 1.7, f: 180 }, 900, 0, 'cubic-bezier(.3, .1, .2, 1)');
+    chosenCard = card;
+  }
+
+  async function spinCards(winner) {
+    const text = state.items[winner];
+    try {
+      if (chosenCard) {            // karta z minulého losování zpět do balíčku
+        await gatherDeck(380);
+        chosenCard = null;
+        restackZ();
+      }
+      if (state.animate) {
+        for (let k = 0; k < 3; k++) await shuffleRound();
+        await sleep(250);
+        await pickCard(text);
+        await sleep(700);
+      } else {
+        const card = deck[Math.floor(deck.length / 2)];
+        card.text.textContent = text;
+        card.el.style.zIndex = '100';
+        card.el.style.transform = cardTransform({ s: 1.7, f: 180 });
+        chosenCard = card;
+      }
+    } finally {
+      state.spinning = false;
+      spinBtn.disabled = state.items.length < 2;
+    }
+    showResult(winner);
+  }
+
   /* ---------- výsuvný panel historie ---------- */
   const historyTab = $('historyTab');
   function setHistoryOpen(open) {
@@ -680,6 +1098,9 @@
   load();
   $('allowRemove').checked = state.allowRemove;
   $('animate').checked = state.animate;
+  buildDeck();
+  fitCards();
+  setMode(state.mode);
   syncTextarea();
   renderHistory();
   applyTheme();
