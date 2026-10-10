@@ -210,8 +210,22 @@
   .seg-btn:hover { color: var(--accent); }
   .seg-btn.active, .seg-btn.active:hover { background: var(--accent); color: var(--accent-text); }
 
-  .preset-tabs { align-self: flex-start; }
-  .preset-tabs .seg-btn { font-size: .8rem; padding: 3px 10px; }
+  .preset-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .preset-tabs .seg-btn {
+    font-size: .8rem; padding: 3px 10px;
+    border: 1px solid var(--border); border-radius: 999px; background: var(--panel);
+  }
+  .preset-tabs .seg-btn.active, .preset-tabs .seg-btn.active:hover {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-text);
+  }
+  .preset-tabs .seg-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .preset-tabs .seg-btn:disabled:hover { color: var(--text); }
+  .preset-tabs .seg-action { padding: 3px 9px; }
+  .preset-name {
+    font: inherit; font-size: .8rem; width: 9.5em; padding: 3px 10px;
+    border: 1px solid var(--accent); border-radius: 999px;
+    background: var(--panel); color: var(--text); outline: none;
+  }
 
   /* přechod kolo ↔ ruleta */
   .wheel-wrap { perspective: 1400px; }
@@ -338,11 +352,7 @@
       <button id="resetBtn" class="btn btn-danger" type="button" title="Vrátí kolo do výchozí polohy a smaže historii výsledků, položky zůstanou (před resetem se zeptá)">Resetovat</button>
     </div>
 
-    <div class="seg preset-tabs" id="presetTabs" role="group" aria-label="Výběr seznamu">
-      <button class="seg-btn" type="button" data-preset="0" title="Přepne na seznam Výběr 1">Výběr 1</button>
-      <button class="seg-btn" type="button" data-preset="1" title="Přepne na seznam Výběr 2">Výběr 2</button>
-      <button class="seg-btn" type="button" data-preset="2" title="Přepne na seznam Výběr 3">Výběr 3</button>
-    </div>
+    <div class="preset-tabs" id="presetTabs" role="group" aria-label="Výběr seznamu"></div>
 
     <textarea id="items" spellcheck="false" aria-label="Položky kola, jedna na řádek"></textarea>
     <div class="row">
@@ -411,6 +421,7 @@
 
   const STORAGE_KEY = 'kolo-stesti:v1';
   const HISTORY_LIMIT = 100;
+  const MAX_PRESETS = 10;
 
   const $ = (id) => document.getElementById(id);
   const canvas = $('wheel'), ctx = canvas.getContext('2d');
@@ -419,8 +430,9 @@
 
   const state = {
     items: [],          // položky aktivního výběru
-    presets: [[], [], []],   // uložené seznamy Výběr 1–3
+    presets: [[]],           // uložené seznamy Výběr 1–N (výchozí je jeden)
     active: 0,               // index aktivního výběru
+    names: [''],             // vlastní názvy výběrů ('' = výchozí „Výběr N“)
     theme: null,
     rotation: 0,       // rad
     spinning: false,
@@ -438,10 +450,14 @@
       if (!raw) return;
       const d = JSON.parse(raw);
       if (Array.isArray(d.presets)) {
-        state.presets = [0, 1, 2].map((i) =>
-          (Array.isArray(d.presets[i]) ? d.presets[i].map(String) : []));
+        state.presets = d.presets.slice(0, MAX_PRESETS)
+          .map((p) => (Array.isArray(p) ? p.map(String) : []));
+        if (state.presets.length === 0) state.presets = [[]];
+        state.names = state.presets.map((_, i) =>
+          (Array.isArray(d.presetNames) && typeof d.presetNames[i] === 'string'
+            ? d.presetNames[i].slice(0, 20) : ''));
         const a = Number(d.activePreset);
-        state.active = Number.isInteger(a) && a >= 0 && a < 3 ? a : 0;
+        state.active = Number.isInteger(a) && a >= 0 && a < state.presets.length ? a : 0;
         state.items = state.presets[state.active].slice();
       } else if (Array.isArray(d.items)) {
         // starší záznam bez výběrů: stávající seznam se přenese do Výběr 1
@@ -468,6 +484,7 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         // items zůstává jako kopie aktivního výběru kvůli zpětné kompatibilitě
         items: state.items, presets: state.presets, activePreset: state.active,
+        presetNames: state.names,
         theme: state.theme, history: state.history,
         allowRemove: state.allowRemove, animate: state.animate,
         historyAsc: state.historyAsc, mode: state.mode
@@ -666,15 +683,109 @@
 
   /* ---------- výběry (3 sloty se seznamy) ---------- */
   function renderPresetTabs() {
-    document.querySelectorAll('#presetTabs .seg-btn').forEach((b) => {
-      const on = Number(b.dataset.preset) === state.active;
-      b.classList.toggle('active', on);
+    const box = $('presetTabs');
+    box.innerHTML = '';
+    state.presets.forEach((_, i) => {
+      if (i === renamingIdx) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'preset-name';
+        input.maxLength = PRESET_NAME_MAX;
+        input.value = presetLabel(i);
+        input.setAttribute('aria-label', 'Název výběru');
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') finishRename(i, input.value, true);
+          else if (e.key === 'Escape') finishRename(i, '', false);
+        });
+        input.addEventListener('blur', () => finishRename(i, input.value, true));
+        box.appendChild(input);
+        setTimeout(() => { input.focus(); input.select(); }, 0);
+        return;
+      }
+      const b = document.createElement('button');
+      const on = i === state.active;
+      b.type = 'button';
+      b.className = 'seg-btn' + (on ? ' active' : '');
+      b.textContent = presetLabel(i);
+      b.title = 'Přepne na seznam „' + presetLabel(i) + '“ (dvojklikem přejmenuješ)';
       b.setAttribute('aria-pressed', String(on));
+      b.addEventListener('click', () => switchPreset(i));
+      b.addEventListener('dblclick', () => { switchPreset(i); startRename(i); });
+      box.appendChild(b);
     });
+    const rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'seg-btn seg-action';
+    rename.textContent = '✎';
+    rename.title = 'Přejmenuje aktuální výběr';
+    rename.addEventListener('click', () => startRename(state.active));
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'seg-btn seg-action';
+    add.textContent = '+';
+    add.title = 'Přidá nový prázdný výběr (nejvýše ' + MAX_PRESETS + ')';
+    add.disabled = state.presets.length >= MAX_PRESETS;
+    add.addEventListener('click', addPreset);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'seg-btn seg-action';
+    del.textContent = '✕';
+    del.title = 'Odebere aktuální výběr i s jeho položkami (Výběr 1 odebrat nejde)';
+    del.addEventListener('click', removePreset);
+    box.appendChild(add);
+    box.appendChild(rename);
+    if (state.active > 0) box.appendChild(del);   // první (výchozí) výběr odebrat nejde
+  }
+
+  // vlastní název výběru; prázdný = výchozí „Výběr N“
+  const PRESET_NAME_MAX = 20;
+  let renamingIdx = null;
+  const presetLabel = (i) => state.names[i] || 'Výběr ' + (i + 1);
+
+  function startRename(i) {
+    if (state.spinning) return;
+    renamingIdx = i;
+    renderPresetTabs();
+  }
+
+  function finishRename(i, value, commit) {
+    if (renamingIdx !== i) return;   // blur po Enteru/Escape
+    renamingIdx = null;
+    if (commit) {
+      state.names[i] = value.trim().slice(0, PRESET_NAME_MAX).trim();
+      save();
+    }
+    renderPresetTabs();
+  }
+
+  function addPreset() {
+    if (state.spinning || state.presets.length >= MAX_PRESETS) return;
+    state.presets[state.active] = state.items.slice();
+    state.presets.push([]);
+    state.names.push('');
+    switchPreset(state.presets.length - 1);
+  }
+
+  function removePreset() {
+    // první (výchozí) výběr se odebrat nedá
+    if (state.spinning || state.active === 0 || state.presets.length <= 1) return;
+    const i = state.active;
+    const doRemove = () => {
+      state.presets.splice(i, 1);
+      state.names.splice(i, 1);
+      renamingIdx = null;
+      state.active = Math.min(i, state.presets.length - 1);
+      state.items = state.presets[state.active].slice();
+      syncTextarea();
+      renderPresetTabs();
+      onItemsChanged(false);
+    };
+    askConfirm(`Opravdu odebrat „${presetLabel(i)}“ i s jeho položkami?`, 'Odebrat', doRemove);
   }
 
   function switchPreset(i) {
     if (state.spinning || i === state.active) return;
+    renamingIdx = null;
     state.presets[state.active] = state.items.slice();
     state.active = i;
     state.items = state.presets[i].slice();
@@ -682,10 +793,6 @@
     renderPresetTabs();
     onItemsChanged(false);
   }
-
-  document.querySelectorAll('#presetTabs .seg-btn').forEach((b) => {
-    b.addEventListener('click', () => switchPreset(Number(b.dataset.preset)));
-  });
 
   function parseLines(text) {
     return text.replace(/^﻿/, '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
